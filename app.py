@@ -15,7 +15,7 @@ st.set_page_config("Dashboard Comercial CVS 2026", layout="wide")
 CLAVE_DIRECTOR = "Director2026!"
 
 BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = BASE_DIR / "datos"
 DB_PATH = DATA_DIR / "comisiones.db"
 LOGO_PATH = BASE_DIR / "logo.png"
 
@@ -26,7 +26,7 @@ RUTA_METAS = DATA_DIR / "metas.xlsx"
 # VALIDACIÓN
 # =============================
 if not RUTA_LIQ.exists() or not RUTA_METAS.exists():
-    st.error("❌ Faltan archivos en /data")
+    st.error("❌ Faltan archivos en /datos")
     st.stop()
 
 # =============================
@@ -399,3 +399,4 @@ with tab2:
                 open("Historico_Comisiones.xlsx", "rb"),
                 file_name="Historico_Comisiones.xlsx"
             )
+
