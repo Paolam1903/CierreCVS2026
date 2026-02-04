@@ -21,9 +21,7 @@ LOGO_PATH = BASE_DIR / "logo.png"
 
 RUTA_LIQ = DATA_DIR / "liquidacion_final.xlsx"
 RUTA_METAS = DATA_DIR / "metas.xlsx"
-st.write("Ruta data:", DATA_DIR)
-st.write("Existe liquidación:", RUTA_LIQ.exists())
-st.write("Existe metas:", RUTA_METAS.exists())
+
 # =============================
 # VALIDACIÓN
 # =============================
@@ -401,4 +399,5 @@ with tab2:
                 open("Historico_Comisiones.xlsx", "rb"),
                 file_name="Historico_Comisiones.xlsx"
             )
+
 
