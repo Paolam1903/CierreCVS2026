@@ -7,11 +7,11 @@ def calcular_distribucion(n_asesores):
     if n_asesores == 1:
         return 0.40, 0.60
     elif n_asesores == 2:
-        return 0.25, 0.75
+        return 0.25, 0.375  # 37.5% cada asesor
     elif n_asesores >= 3:
-        return 0.20, 0.80
+        return 0.20, 0.266  # 266% cada asesor
     else:
-        return 1, 0
+        return 1.0, 0.0
 
 
 # =================================================
@@ -76,13 +76,13 @@ def resumen_kpi_producto_por_cvs(df):
             "Ejecutado Líder": puntos_lider,
             "Cumplimiento Líder %": round(
                 (puntos_lider / (meta_producto * pct_lider)) * 100, 2
-            ) if meta_producto * pct_lider > 0 else 0,
+            ) if meta_producto * pct_lider >= 0 else 0,
 
             "Meta Asesores": meta_producto * pct_asesores,
             "Ejecutado Asesores": puntos_asesores,
             "Cumplimiento Asesores %": round(
                 (puntos_asesores / (meta_producto * pct_asesores)) * 100, 2
-            ) if meta_producto * pct_asesores > 0 else 0,
+            ) if meta_producto * pct_asesores >= 0 else 0,
         })
 
     return pd.DataFrame(resultados)
