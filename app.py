@@ -333,14 +333,33 @@ def calcular_kpi_puntos(df_cvs, df_persona, rol):
     return meta, ejecutado, cumplimiento
 
 
-# =============================
+# =======================
+# Archivo histórico central
+# =======================
+RUTA_HISTORICO = DATA_DIR / "historico_comisiones.xlsx"
+
+# Cargar histórico existente (si existe)
+if RUTA_HISTORICO.exists():
+    df_historico = pd.read_excel(RUTA_HISTORICO)
+else:
+    df_historico = pd.DataFrame(
+        columns=[
+            "Mes", "CVS", "Nombre", "Rol", "Producto",
+            "Meta_Producto", "Ejecutado", "% Cumplimiento",
+            "Tipo Pago Comisión", "Observación"
+        ]
+    )
+
+# Guardar en session_state para manipular en la app
+if "historico_decisiones" not in st.session_state:
+    st.session_state["historico_decisiones"] = df_historico.to_dict("records")
+
+
+# =======================
 # TAB 2 – PRESUPUESTO / COMISIÓN
-# =============================
+# =======================
 with tab2:
     st.subheader("📍 Detalle por CVS")
-
-    if "historico_decisiones" not in st.session_state:
-        st.session_state["historico_decisiones"] = []
 
     # Usar el CVS del filtro lateral
     if cvs == "Todos":
@@ -353,12 +372,12 @@ with tab2:
     # Maestro de productos del CVS
     maestro = maestro_productos_por_cvs(df_f, cvs_sel)
 
+    tablas_guardar = []
+
     # =====================
     # LÍDER
     # =====================
     df_lider = df_cvs[df_cvs["Rol"] == "LIDER"].copy()
-    tablas_guardar = []
-
     if df_lider.empty:
         st.warning("⚠️ No se encontró líder para este CVS")
     else:
@@ -366,17 +385,9 @@ with tab2:
         st.markdown(f"## 👔 Líder: **{nombre_lider}**")
 
         meta_p, ejec_p, pct_p = calcular_kpi_puntos(df_cvs, df_lider, "LIDER")
+        st.metric("🎯 KPI Puntos", f"{int(ejec_p)} / {int(meta_p)}", f"{pct_p}%")
 
-        st.metric(
-            "🎯 KPI Puntos",
-            f"{int(ejec_p)} / {int(meta_p)}",
-            f"{pct_p}%"
-        )
-
-        tabla_lider = construir_tabla_productos(
-            df_lider, maestro, df_cvs, "LIDER"
-        )
-
+        tabla_lider = construir_tabla_productos(df_lider, maestro, df_cvs, "LIDER")
         tabla_lider["Nombre"] = nombre_lider
         tabla_lider["Rol"] = "LIDER"
         tabla_lider["CVS"] = cvs_sel
@@ -387,7 +398,7 @@ with tab2:
             lambda r: next(
                 (
                     (x["Tipo Pago Comisión"], x["Observación"])
-                    for x in st.session_state["historico_decisiones"]
+                    for x in st.session_state.get("historico_decisiones", [])
                     if x["Mes"] == mes_sel
                     and x["CVS"] == cvs_sel
                     and x["Nombre"] == nombre_lider
@@ -398,6 +409,10 @@ with tab2:
             axis=1,
             result_type="expand"
         )
+
+        # ✅ Asegurar que las columnas sean tipo string
+        tabla_lider["Tipo Pago Comisión"] = tabla_lider["Tipo Pago Comisión"].astype(str)
+        tabla_lider["Observación"] = tabla_lider["Observación"].fillna("").astype(str)
 
         tabla_lider = st.data_editor(
             tabla_lider,
@@ -425,17 +440,10 @@ with tab2:
     else:
         for nombre, g in df_asesoras.groupby("Nombre_Vendedor"):
             with st.expander(f"👩 {nombre}"):
-
                 meta_p, ejec_p, pct_p = calcular_kpi_puntos(df_cvs, g, "ASESOR")
-
-                st.metric(
-                    "🎯 KPI Puntos",
-                    f"{int(ejec_p)} / {int(meta_p)}",
-                    f"{pct_p}%"
-                )
+                st.metric("🎯 KPI Puntos", f"{int(ejec_p)} / {int(meta_p)}", f"{pct_p}%")
 
                 tabla = construir_tabla_productos(g, maestro, df_cvs, "ASESOR")
-
                 tabla["Nombre"] = nombre
                 tabla["Rol"] = "ASESOR"
                 tabla["CVS"] = cvs_sel
@@ -446,7 +454,7 @@ with tab2:
                     lambda r: next(
                         (
                             (x["Tipo Pago Comisión"], x["Observación"])
-                            for x in st.session_state["historico_decisiones"]
+                            for x in st.session_state.get("historico_decisiones", [])
                             if x["Mes"] == mes_sel
                             and x["CVS"] == cvs_sel
                             and x["Nombre"] == nombre
@@ -457,6 +465,10 @@ with tab2:
                     axis=1,
                     result_type="expand"
                 )
+
+                # ✅ Asegurar que las columnas sean tipo string
+                tabla["Tipo Pago Comisión"] = tabla["Tipo Pago Comisión"].astype(str)
+                tabla["Observación"] = tabla["Observación"].fillna("").astype(str)
 
                 tabla = st.data_editor(
                     tabla,
@@ -477,32 +489,39 @@ with tab2:
     # GUARDAR + DESCARGAR
     # =====================
     if es_director and st.button("💾 Guardar decisiones del CVS"):
+        if tablas_guardar:  # Prevenir error si no hay tablas
+            nuevas_decisiones = pd.concat(tablas_guardar, ignore_index=True)
 
-        # Eliminar registros del mismo CVS y mes
-        st.session_state["historico_decisiones"] = [
-            r for r in st.session_state["historico_decisiones"]
-            if not (r["Mes"] == mes_sel and r["CVS"] == cvs_sel)
-        ]
+            # Cargar histórico existente desde Excel
+            if RUTA_HISTORICO.exists():
+                df_historico = pd.read_excel(RUTA_HISTORICO, engine="openpyxl")
+            else:
+                df_historico = pd.DataFrame(columns=nuevas_decisiones.columns)
 
-        # Agregar nuevos registros
-        for t in tablas_guardar:
-            st.session_state["historico_decisiones"].extend(
-                t.to_dict("records")
-            )
+            # Eliminar registros del mismo CVS y mes
+            df_historico = df_historico[~(
+                (df_historico["Mes"] == mes_sel) &
+                (df_historico["CVS"] == cvs_sel)
+            )]
 
-        st.success("✅ Decisiones guardadas correctamente")
+            # Agregar nuevas decisiones
+            df_historico = pd.concat([df_historico, nuevas_decisiones], ignore_index=True)
+
+            # Guardar a Excel
+            df_historico.to_excel(RUTA_HISTORICO, index=False)
+
+            # Actualizar session_state
+            st.session_state["historico_decisiones"] = df_historico.to_dict("records")
+
+            st.success(f"✅ Decisiones guardadas correctamente en {RUTA_HISTORICO.name}")
 
     if st.button("📊 Descargar histórico del mes"):
-        df_hist = pd.DataFrame(st.session_state["historico_decisiones"])
+        df_hist = pd.DataFrame(st.session_state.get("historico_decisiones", []))
         df_hist = df_hist[df_hist["Mes"] == mes_sel]
-
         if not df_hist.empty:
-            archivo = "Historico_Comisiones.xlsx"
-            df_hist.to_excel(archivo, index=False)
-
-            with open(archivo, "rb") as f:
+            with open(RUTA_HISTORICO, "rb") as f:
                 st.download_button(
                     "⬇️ Descargar Excel",
                     f,
-                    file_name=archivo
+                    file_name=f"Historico_Comisiones_{mes_sel}.xlsx"
                 )
