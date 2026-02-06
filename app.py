@@ -5,6 +5,7 @@ from datetime import datetime
 import sqlite3
 from PIL import Image
 import matplotlib.pyplot as plt
+import numpy as np
 
 # =============================
 # CONFIG
@@ -146,28 +147,32 @@ df = df.merge(df_meta, on=["Sucursal", "Producto"], how="left")
 # =============================
 st.sidebar.subheader("📅 Filtros")
 
-mes = st.sidebar.selectbox("Mes", ["Todos"] + sorted(df["Mes"].unique()))
+# Filtro por mes
+meses = ["Todos"] + sorted(df["Mes"].dropna().unique())
+mes_sel = st.sidebar.selectbox("Mes", meses)
 
-
-df_f = df.copy()
-if mes != "Todos":
-    df_f = df_f[df_f["Mes"] == mes]
-
-
-# =============================
-# FILTRO POR CVS SEGÚN PERFIL
-# =============================
+# Filtro por CVS según perfil
 if es_director or es_admin:
-    cvs = st.sidebar.selectbox(
+    cvs_sel = st.sidebar.selectbox(
         "CVS",
-        ["Todos"] + sorted(df["Sucursal"].unique())
+        ["Todos"] + sorted(df["Sucursal"].dropna().unique())
     )
 else:
-    cvs = cvs_usuario
+    cvs_sel = cvs_usuario
 
-# Restringir datos según perfil
-if perfil == "CVS" and cvs_usuario:
-    df_f = df_f[df_f["Sucursal"] == cvs_usuario]
+# =============================
+# APLICAR FILTROS
+# =============================
+df_f = df.copy()
+
+# Filtro mes
+if mes_sel != "Todos":
+    df_f = df_f[df_f["Mes"] == mes_sel]
+
+# Filtro CVS
+if cvs_sel and cvs_sel != "Todos":
+    df_f = df_f[df_f["Sucursal"] == cvs_sel]
+
 
 
 # =============================
@@ -181,31 +186,108 @@ tab1, tab2 = st.tabs(["📊 Dashboard", "💰 Presupuesto / Comisión"])
 with tab1:
     st.subheader("📦 Cumplimiento por Producto")
 
+    # Lista de productos base que siempre queremos mostrar
+    productos_base = ["HOGAR", "POSTPAGO", "TERMINALES", "CVS PLUS", "OTROS"]
+
+    # Agregar meta y ejecutado por producto
     prod = df_f.groupby("Producto").agg(
         Meta=("Meta_Producto","sum"),
         Ejecutado=("Puntos","sum")
     ).reset_index()
 
-    fig, ax = plt.subplots()
-    ax.bar(prod["Producto"], prod["Meta"])
-    ax.bar(prod["Producto"], prod["Ejecutado"])
-    ax.set_title("Meta vs Ejecutado (Puntos)")
+    # Asegurarse que todos los productos base estén presentes
+    prod = pd.DataFrame(productos_base, columns=["Producto"]).merge(
+        prod, on="Producto", how="left"
+    ).fillna(0)
+
+    # Convertir valores a int
+    prod["Meta"] = prod["Meta"].astype(int)
+    prod["Ejecutado"] = prod["Ejecutado"].astype(int)
+
+    # Ordenar productos por Ejecutado de mayor a menor (para línea de tendencia)
+    prod = prod.sort_values("Ejecutado", ascending=False).reset_index(drop=True)
+
+    # Posiciones de las barras
+    x = np.arange(len(prod["Producto"]))
+    width = 0.35
+
+    fig, ax = plt.subplots(figsize=(10,6))
+
+    # Barras lado a lado
+    bars_meta = ax.bar(x - width/2, prod["Meta"], width, label="Meta", color="#D6CE59")
+    bars_ejec = ax.bar(x + width/2, prod["Ejecutado"], width, label="Ejecutado", color="#52965F")
+
+    # Etiquetas encima de cada barra
+    for bar in bars_meta:
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2, height + 1, f"{height:,.0f}".replace(",", "."), ha='center', va='bottom', fontsize=10, color="#918B42")
+
+    for bar in bars_ejec:
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2, height + 1, f"{height:,.0f}".replace(",", "."), ha='center', va='bottom', fontsize=10, color="#52965F")
+
+    # Línea de tendencia sobre Ejecutado
+    z = np.polyfit(x, prod["Ejecutado"], 1)  # ajusta línea recta
+    p = np.poly1d(z)
+    ax.plot(x, p(x), color="green", linestyle="--", linewidth=2, label="Tendencia Ejecutado")
+
+    # Etiquetas y título
+    ax.set_xticks(x)
+    ax.set_xticklabels(prod["Producto"], rotation=45, ha="right")
+    ax.set_ylabel("Puntos")
+    ax.set_title("Meta vs Ejecutado por Producto con Línea de Tendencia")
+    ax.legend()
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+
     st.pyplot(fig)
 
-    st.subheader("👤 Cumplimiento por Persona")
-
-    per = df_f.groupby("Nombre_Vendedor")["Puntos"].sum().reset_index()
-    fig2, ax2 = plt.subplots()
-    ax2.barh(per["Nombre_Vendedor"], per["Puntos"])
-    st.pyplot(fig2)
 
 
-meses = sorted(df["Fecha"].dt.to_period("M").astype(str).unique().tolist())
+    st.subheader("🎯 Meta General vs Ejecutado")
 
-mes_sel = st.sidebar.selectbox(
-    "Selecciona mes",
-    meses
-)
+    # Calcular totales
+    meta_general = df_f["Meta_General"].sum()
+    puntos_ejecutados = df_f["Puntos"].sum()
+
+    # Crear DataFrame para el gráfico
+    df_general = pd.DataFrame({
+        "Concepto": ["Meta General", "Ejecutado"],
+        "Valor": [meta_general, puntos_ejecutados]
+    })
+
+    # Crear gráfico
+    fig, ax = plt.subplots(figsize=(5,3))
+    bars = ax.bar(df_general["Concepto"], df_general["Valor"])
+
+    # Etiquetas de datos con separador de miles
+    for bar in bars:
+        height = bar.get_height()
+        valor = f"{height:,.0f}".replace(",", ".")
+        ax.text(
+            bar.get_x() + bar.get_width()/2,
+            height * 1.01,
+            valor,
+            ha="center",
+            va="bottom",
+            fontsize=7,
+            fontweight="bold"
+        )
+
+    # Formato del eje Y con miles
+    ax.yaxis.set_major_formatter(
+    plt.FuncFormatter(lambda x, _: f"{int(x):,}".replace(",", "."))
+    )
+
+    ax.set_ylabel("Puntos", fontsize=6)
+    ax.set_title("Meta General vs Ejecutado", fontsize=6)
+    ax.tick_params(axis='x', labelsize=5)
+    ax.tick_params(axis='y', labelsize=5)
+
+    ax.grid(axis="y", linestyle="--", alpha=0.5)
+
+    st.pyplot(fig)
+
+
 
 def obtener_decision_guardada(mes, cvs, nombre, rol, producto):
     for r in st.session_state.get("historico_decisiones", []):
@@ -354,6 +436,12 @@ else:
 if "historico_decisiones" not in st.session_state:
     st.session_state["historico_decisiones"] = df_historico.to_dict("records")
 
+with st.sidebar:
+    st.subheader("Filtros")
+
+    meses = sorted(df["Mes"].dropna().unique())
+    mes_sel = st.selectbox("Selecciona el mes historico", meses)
+
 
 # =======================
 # TAB 2 – PRESUPUESTO / COMISIÓN
@@ -362,11 +450,11 @@ with tab2:
     st.subheader("📍 Detalle por CVS")
 
     # Usar el CVS del filtro lateral
-    if cvs == "Todos":
+    if cvs_sel == "Todos" or not cvs_sel:
+
         st.info("Selecciona un CVS en el panel lateral")
         st.stop()
 
-    cvs_sel = cvs
     df_cvs = df_f[df_f["Sucursal"] == cvs_sel]
 
     # Maestro de productos del CVS
