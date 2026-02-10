@@ -75,6 +75,7 @@ ACCESOS_CVS = {
     "JUNIN": "cvscentro2025+",
     "SABANETA": "sabaneta19092+",
     "TERMINAL NORTE": "norte11+",
+    "GENERAL": "Todos12345+",
 
 }
 
@@ -175,10 +176,12 @@ if cvs_sel and cvs_sel != "Todos":
 
 
 
+
+
 # =============================
 # TABS
 # =============================
-tab1, tab2 = st.tabs(["📊 Dashboard", "💰 Presupuesto / Comisión"])
+tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "💰 Presupuesto / Comisión", "⚖️Cumplimiento General"])
 
 # =============================
 # TAB 1 – DASHBOARD
@@ -334,6 +337,10 @@ def calcular_distribucion(n_asesores, cvs):
     # Regla especial para Frontino
     if str(cvs).upper() == "FRONTINO":
         return 0.50, 0.50
+    
+    # Si no hay asesores, el líder cumple al 100%
+    if n_asesores == 0:
+        return 1.0, 1.0  # 100% meta productos, 100% meta general
 
     # Reglas normales
     if n_asesores == 1:
@@ -745,3 +752,91 @@ with tab2:
             st.warning("No hay datos para este mes")
 
 
+
+# =======================
+# TAB 3 – CUMPLIMIENTO GENERAL COORDINADOR Y SUPERVISORA
+# =======================
+# =========================
+# TAB 3 – PANEL COORDINADOR
+# =========================
+with tab3:
+    st.subheader("⚖️Cumplimiento General")
+
+    # =========================
+    # TOTALES GENERALES
+    # =========================
+
+    # Meta total (sin duplicar sucursal)
+    meta_total = (
+        df_f[["Sucursal", "Meta_General"]]
+        .drop_duplicates()
+        ["Meta_General"]
+        .sum()
+    )
+
+    # Puntos totales
+    puntos_total = df_f["Puntos"].sum()
+
+    # Cantidad total
+    cantidad_total = df_f["Cantidad"].sum()
+
+    # % cumplimiento
+    if meta_total > 0:
+        pct_total = (puntos_total / meta_total) * 100
+    else:
+        pct_total = 0
+
+    pct_total = round(pct_total, 1)
+
+    # =========================
+    # KPI SEMÁFORO
+    # =========================
+    if pct_total >= 100:
+        color = "green"
+        estado = "Excelente"
+    elif pct_total >= 90:
+        color = "orange"
+        estado = "Aceptable"
+    else:
+        color = "red"
+        estado = "Crítico"
+
+    # =========================
+    # PANEL SUPERIOR
+    # =========================
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric("🎯 Meta total", f"{meta_total:,.0f}".replace(",", "."))
+    col2.metric("⭐ Puntos totales", f"{puntos_total:,.0f}".replace(",", "."))
+    col3.metric("📦 Cantidad total", f"{cantidad_total:,.0f}".replace(",", "."))
+    col4.metric("📈 Cumplimiento", f"{pct_total} %")
+
+    # Semáforo visual
+    st.markdown(
+        f"""
+        <div style="background-color:{color};
+                    padding:15px;
+                    border-radius:10px;
+                    text-align:center;
+                    color:white;
+                    font-size:20px;
+                    font-weight:bold;">
+            KPI General: {estado} ({pct_total}%)
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.divider()
+
+    # =========================
+    # RESUMEN POR PRODUCTO
+    # =========================
+    st.subheader("📦 Resumen por producto")
+
+    resumen_prod = df_f.groupby("Producto").agg(
+        Cantidad=("Cantidad", "sum"),
+        Puntos=("Puntos", "sum")
+    ).reset_index()
+
+    st.dataframe(resumen_prod, use_container_width=True)
