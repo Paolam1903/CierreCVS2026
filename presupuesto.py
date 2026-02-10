@@ -1,17 +1,23 @@
 import pandas as pd
 
-# =================================================
-# REGLA DE DISTRIBUCIÓN (OFICIAL)
-# =================================================
-def calcular_distribucion(n_asesores):
+# =====================
+# REGLA DE DISTRIBUCIÓN
+# =====================
+def calcular_distribucion(n_asesores, cvs):
+    # Regla especial para Frontino
+    if str(cvs).upper() == "FRONTINO":
+        return 0.50, 0.50
+
+    # Reglas normales
     if n_asesores == 1:
         return 0.40, 0.60
     elif n_asesores == 2:
-        return 0.25, 0.375  # 37.5% cada asesor
+        return 0.25, 0.375
     elif n_asesores >= 3:
-        return 0.20, 0.266  # 266% cada asesor
+        return 0.20, 0.266
     else:
         return 1.0, 0.0
+
 
 
 # =================================================
@@ -24,7 +30,8 @@ def resumen_meta_general_por_cvs(df):
         meta_total = grupo["Meta_General"].iloc[0]
 
         n_asesores = grupo[grupo["Rol"] == "ASESOR"]["Cedula_Vendedor"].nunique()
-        pct_lider, pct_asesores = calcular_distribucion(n_asesores)
+        pct_lider, pct_asesores = calcular_distribucion(n_asesores, sucursal)
+
 
         puntos_lider = grupo[grupo["Rol"] == "LIDER"]["Puntos"].sum()
         puntos_asesores = grupo[grupo["Rol"] == "ASESOR"]["Puntos"].sum()
@@ -61,7 +68,8 @@ def resumen_kpi_producto_por_cvs(df):
         meta_producto = grupo["Meta_Producto"].iloc[0]
 
         n_asesores = grupo[grupo["Rol"] == "ASESOR"]["Cedula_Vendedor"].nunique()
-        pct_lider, pct_asesores = calcular_distribucion(n_asesores)
+        pct_lider, pct_asesores = calcular_distribucion(n_asesores, sucursal)
+
 
         puntos_lider = grupo[grupo["Rol"] == "LIDER"]["Puntos"].sum()
         puntos_asesores = grupo[grupo["Rol"] == "ASESOR"]["Puntos"].sum()

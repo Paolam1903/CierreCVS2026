@@ -185,81 +185,118 @@ tab1, tab2 = st.tabs(["📊 Dashboard", "💰 Presupuesto / Comisión"])
 # =============================
 with tab1:
     st.subheader("📦 Cumplimiento por Producto")
-
-    # Lista de productos base que siempre queremos mostrar
-    productos_base = ["HOGAR", "POSTPAGO", "TERMINALES", "CVS PLUS", "OTROS"]
-
-    # Agregar meta y ejecutado por producto
+    
+    # Lista fija de productos
+    productos_base = ["HOGAR", "POSTPAGO", "TERMINALES", "FOCO", "CVS PLUS", "OTROS"]
+    
+    
+    # Agrupar meta y ejecutado por producto
     prod = df_f.groupby("Producto").agg(
-        Meta=("Meta_Producto","sum"),
-        Ejecutado=("Puntos","sum")
+        Meta=("Meta_Producto", "max"),   # meta única
+        Ejecutado=("Cantidad", "sum")    # cantidad vendida
     ).reset_index()
 
-    # Asegurarse que todos los productos base estén presentes
+
+    # Asegurar productos base
     prod = pd.DataFrame(productos_base, columns=["Producto"]).merge(
         prod, on="Producto", how="left"
     ).fillna(0)
 
-    # Convertir valores a int
+
+    # Calcular % cumplimiento
+    prod["% Cumplimiento"] = (
+        prod["Ejecutado"] / prod["Meta"]
+    ).replace([np.inf, -np.inf], 0).fillna(0) * 100
+
+    # Convertir a enteros
     prod["Meta"] = prod["Meta"].astype(int)
     prod["Ejecutado"] = prod["Ejecutado"].astype(int)
+    prod["% Cumplimiento"] = prod["% Cumplimiento"].round(1)
 
-    # Ordenar productos por Ejecutado de mayor a menor (para línea de tendencia)
+    # Ordenar por ejecutado
     prod = prod.sort_values("Ejecutado", ascending=False).reset_index(drop=True)
 
-    # Posiciones de las barras
+    # Posiciones
     x = np.arange(len(prod["Producto"]))
     width = 0.35
 
-    fig, ax = plt.subplots(figsize=(10,6))
+    fig, ax = plt.subplots(figsize=(10, 6))
 
-    # Barras lado a lado
-    bars_meta = ax.bar(x - width/2, prod["Meta"], width, label="Meta", color="#D6CE59")
-    bars_ejec = ax.bar(x + width/2, prod["Ejecutado"], width, label="Ejecutado", color="#52965F")
+    bars_meta = ax.bar(x - width/2, prod["Meta"], width, label="Meta")
+    bars_ejec = ax.bar(x + width/2, prod["Ejecutado"], width, label="Ejecutado")
 
-    # Etiquetas encima de cada barra
+    # Etiquetas para META
     for bar in bars_meta:
         height = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width()/2, height + 1, f"{height:,.0f}".replace(",", "."), ha='center', va='bottom', fontsize=10, color="#918B42")
+        ax.text(
+            bar.get_x() + bar.get_width()/2,
+            height,
+            f"{int(height):,}".replace(",", "."),
+            ha="center",
+            va="bottom",
+            fontsize=9,
+            fontweight="bold"
+        )
 
-    for bar in bars_ejec:
+    # Etiquetas para EJECUTADO + %
+    for i, bar in enumerate(bars_ejec):
         height = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width()/2, height + 1, f"{height:,.0f}".replace(",", "."), ha='center', va='bottom', fontsize=10, color="#52965F")
+        pct = prod["% Cumplimiento"].iloc[i]
+        ax.text(
+            bar.get_x() + bar.get_width()/2,
+            height,
+            f"{int(height):,}\n{pct:.1f}%",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+            fontweight="bold"
+        )
 
-    # Línea de tendencia sobre Ejecutado
-    z = np.polyfit(x, prod["Ejecutado"], 1)  # ajusta línea recta
+    # Línea de tendencia
+    z = np.polyfit(x, prod["Ejecutado"], 1)
     p = np.poly1d(z)
-    ax.plot(x, p(x), color="green", linestyle="--", linewidth=2, label="Tendencia Ejecutado")
+    ax.plot(x, p(x), linestyle="--", linewidth=2, label="Tendencia Ejecutado")
 
-    # Etiquetas y título
     ax.set_xticks(x)
     ax.set_xticklabels(prod["Producto"], rotation=45, ha="right")
     ax.set_ylabel("Puntos")
-    ax.set_title("Meta vs Ejecutado por Producto con Línea de Tendencia")
+    ax.set_title("Meta vs Ejecutado por Producto")
     ax.legend()
     ax.grid(axis="y", linestyle="--", alpha=0.7)
 
     st.pyplot(fig)
 
 
+    # =============================
+    # META GENERAL VS EJECUTADO
+    # =============================
 
     st.subheader("🎯 Meta General vs Ejecutado")
 
-    # Calcular totales
-    meta_general = df_f["Meta_General"].sum()
-    puntos_ejecutados = df_f["Puntos"].sum()
+    # Meta general sin duplicar CVS
+    meta_general = (
+        df_f[["Sucursal", "Meta_General"]]
+        .drop_duplicates()
+        ["Meta_General"]
+        .sum()
+    )
 
-    # Crear DataFrame para el gráfico
+    # Ejecutado general
+    ejecutado_general = df_f["Puntos"].sum()
+
+    # % cumplimiento general
+    pct_general = (ejecutado_general / meta_general * 100) if meta_general > 0 else 0
+
+    # DataFrame gráfico
     df_general = pd.DataFrame({
         "Concepto": ["Meta General", "Ejecutado"],
-        "Valor": [meta_general, puntos_ejecutados]
+        "Valor": [meta_general, ejecutado_general]
     })
 
-    # Crear gráfico
-    fig, ax = plt.subplots(figsize=(5,3))
+    # Gráfico
+    fig, ax = plt.subplots(figsize=(5, 3))
     bars = ax.bar(df_general["Concepto"], df_general["Valor"])
 
-    # Etiquetas de datos con separador de miles
     for bar in bars:
         height = bar.get_height()
         valor = f"{height:,.0f}".replace(",", ".")
@@ -269,19 +306,20 @@ with tab1:
             valor,
             ha="center",
             va="bottom",
-            fontsize=7,
+            fontsize=8,
             fontweight="bold"
         )
 
-    # Formato del eje Y con miles
+    # Título con % cumplimiento
+    ax.set_title(f"Cumplimiento general: {pct_general:.1f}%", fontsize=8)
+
+
     ax.yaxis.set_major_formatter(
-    plt.FuncFormatter(lambda x, _: f"{int(x):,}".replace(",", "."))
+        plt.FuncFormatter(lambda x, _: f"{int(x):,}".replace(",", "."))
     )
 
-    ax.set_ylabel("Puntos", fontsize=6)
-    ax.set_title("Meta General vs Ejecutado", fontsize=6)
-    ax.tick_params(axis='x', labelsize=5)
-    ax.tick_params(axis='y', labelsize=5)
+    # Reducir tamaño de números del eje Y
+    ax.tick_params(axis='y', labelsize=6)
 
     ax.grid(axis="y", linestyle="--", alpha=0.5)
 
@@ -289,22 +327,15 @@ with tab1:
 
 
 
-def obtener_decision_guardada(mes, cvs, nombre, rol, producto):
-    for r in st.session_state.get("historico_decisiones", []):
-        if (
-            r["Mes"] == mes and
-            r["CVS"] == cvs and
-            r["Nombre"] == nombre and
-            r["Rol"] == rol and
-            r["Producto"] == producto
-        ):
-            return r["Tipo Pago Comisión"], r["Observación"]
-    return "Pago 100%", ""
-
 # =====================
 # REGLA DE DISTRIBUCIÓN
 # =====================
-def calcular_distribucion(n_asesores):
+def calcular_distribucion(n_asesores, cvs):
+    # Regla especial para Frontino
+    if str(cvs).upper() == "FRONTINO":
+        return 0.50, 0.50
+
+    # Reglas normales
     if n_asesores == 1:
         return 0.40, 0.60
     elif n_asesores == 2:
@@ -313,6 +344,7 @@ def calcular_distribucion(n_asesores):
         return 0.20, 0.266
     else:
         return 1.0, 0.0
+
 
 # =====================
 # MAESTRO DE PRODUCTOS
@@ -329,7 +361,7 @@ def maestro_productos_por_cvs(df, cvs_sel):
     )
 
     # Asegurar que siempre existan estos productos
-    productos_base = ["HOGAR", "POSTPAGO", "TERMINALES", "CVS PLUS", "OTROS"]
+    productos_base = ["HOGAR", "POSTPAGO", "TERMINALES", "FOCO", "CVS PLUS", "OTROS"]
 
     for p in productos_base:
         if p not in maestro:
@@ -351,9 +383,10 @@ def construir_tabla_productos(df_vendedor, maestro, df_cvs, rol):
     n_asesores = df_cvs[df_cvs["Rol"] == "ASESOR"]["Nombre_Vendedor"].nunique()
 
     # Obtener porcentajes
-    porc_asesor, porc_lider = calcular_distribucion(n_asesores)
+    porc_asesor, porc_lider = calcular_distribucion(n_asesores, df_cvs["Sucursal"].iloc[0])
 
-    if rol == "LIDER":
+
+    if rol == "ASESOR":
         porcentaje = porc_lider
     else:
         porcentaje = porc_asesor
@@ -402,7 +435,9 @@ def calcular_kpi_puntos(df_cvs, df_persona, rol):
     meta_general = df_cvs["Meta_General"].iloc[0]
 
     n_asesores = df_cvs[df_cvs["Rol"] == "ASESOR"]["Cedula_Vendedor"].nunique()
-    pct_lider, pct_asesor_individual = calcular_distribucion(n_asesores)
+    cvs = df_cvs["Sucursal"].iloc[0]
+    pct_lider, pct_asesor_individual = calcular_distribucion(n_asesores, cvs)
+
 
     if rol == "LIDER":
         meta = meta_general * pct_lider
@@ -428,17 +463,17 @@ else:
         columns=[
             "Mes", "CVS", "Nombre", "Rol", "Producto",
             "Meta_Producto", "Ejecutado", "% Cumplimiento",
-            "Tipo Pago Comisión", "Observación"
+            "Tipo Pago Comisión", "Observación",
+            "ACC"
         ]
     )
 
-# Guardar en session_state para manipular en la app
+# Guardar en session_state
 if "historico_decisiones" not in st.session_state:
     st.session_state["historico_decisiones"] = df_historico.to_dict("records")
 
 with st.sidebar:
     st.subheader("Filtros")
-
     meses = sorted(df["Mes"].dropna().unique())
     mes_sel = st.selectbox("Selecciona el mes historico", meses)
 
@@ -449,15 +484,11 @@ with st.sidebar:
 with tab2:
     st.subheader("📍 Detalle por CVS")
 
-    # Usar el CVS del filtro lateral
     if cvs_sel == "Todos" or not cvs_sel:
-
         st.info("Selecciona un CVS en el panel lateral")
         st.stop()
 
     df_cvs = df_f[df_f["Sucursal"] == cvs_sel]
-
-    # Maestro de productos del CVS
     maestro = maestro_productos_por_cvs(df_f, cvs_sel)
 
     tablas_guardar = []
@@ -466,56 +497,100 @@ with tab2:
     # LÍDER
     # =====================
     df_lider = df_cvs[df_cvs["Rol"] == "LIDER"].copy()
-    if df_lider.empty:
-        st.warning("⚠️ No se encontró líder para este CVS")
-    else:
+
+    if not df_lider.empty:
         nombre_lider = df_lider["Nombre_Vendedor"].iloc[0]
         st.markdown(f"## 👔 Líder: **{nombre_lider}**")
 
         meta_p, ejec_p, pct_p = calcular_kpi_puntos(df_cvs, df_lider, "LIDER")
-        st.metric("🎯 KPI Puntos", f"{int(ejec_p)} / {int(meta_p)}", f"{pct_p}%")
 
-        tabla_lider = construir_tabla_productos(df_lider, maestro, df_cvs, "LIDER")
-        tabla_lider["Nombre"] = nombre_lider
-        tabla_lider["Rol"] = "LIDER"
-        tabla_lider["CVS"] = cvs_sel
-        tabla_lider["Mes"] = mes_sel
+        col1, col2 = st.columns(2)
 
-        # Cargar histórico si existe
-        tabla_lider[["Tipo Pago Comisión", "Observación"]] = tabla_lider.apply(
-            lambda r: next(
+        with col1:
+            st.metric("🎯 KPI Puntos", f"{int(ejec_p)} / {int(meta_p)}", f"{pct_p}%")
+
+        with col2:
+            # KEY ÚNICA SOLO PARA EL LÍDER
+            key_lider = f"acc_lider_{cvs_sel}"
+
+            acc_guardado = next(
                 (
-                    (x["Tipo Pago Comisión"], x["Observación"])
-                    for x in st.session_state.get("historico_decisiones", [])
+                    x.get("ACC", 100)
+                    for x in st.session_state["historico_decisiones"]
                     if x["Mes"] == mes_sel
                     and x["CVS"] == cvs_sel
                     and x["Nombre"] == nombre_lider
-                    and x["Producto"] == r["Producto"]
+                    and x["Rol"] == "LIDER"
                 ),
-                ("Pago 100%", "")
+                100
+            )
+
+            if pd.isna(acc_guardado):
+                acc_guardado = 100
+
+        # Solo cargar si no existe
+        if key_lider not in st.session_state:
+            st.session_state[key_lider] = int(acc_guardado)
+
+        acc_lider = st.number_input(
+            "ACC (%)",
+            min_value=0,
+            max_value=200,
+            key=key_lider,
+            step=1
+        )
+
+    # =====================
+    # TABLA DEL LÍDER
+    # =====================
+    tabla_lider = construir_tabla_productos(df_lider, maestro, df_cvs, "LIDER")
+    tabla_lider["Nombre"] = nombre_lider
+    tabla_lider["Rol"] = "LIDER"
+    tabla_lider["CVS"] = cvs_sel
+    tabla_lider["Mes"] = mes_sel
+
+    tabla_lider[["Tipo Pago Comisión", "Observación"]] = tabla_lider.apply(
+        lambda r: next(
+            (
+                (x["Tipo Pago Comisión"], x["Observación"])
+                for x in st.session_state["historico_decisiones"]
+                if x["Mes"] == mes_sel
+                and x["CVS"] == cvs_sel
+                and x["Nombre"] == nombre_lider
+                and x["Producto"] == r["Producto"]
             ),
-            axis=1,
-            result_type="expand"
-        )
+            ("Pago 100%", "")
+        ),
+        axis=1,
+        result_type="expand"
+    )
 
-        # ✅ Asegurar que las columnas sean tipo string
-        tabla_lider["Tipo Pago Comisión"] = tabla_lider["Tipo Pago Comisión"].astype(str)
-        tabla_lider["Observación"] = tabla_lider["Observación"].fillna("").astype(str)
+    tabla_lider["Observación"] = tabla_lider["Observación"].fillna("").astype(str)
 
-        tabla_lider = st.data_editor(
-            tabla_lider,
-            column_config={
-                "Tipo Pago Comisión": st.column_config.SelectboxColumn(
-                    options=["Pago 100%", "Pago 90%", "Sin pago (0%)"]
-                ),
-                "Observación": st.column_config.TextColumn()
-            },
-            disabled=not es_director,
-            use_container_width=True,
-            key="editor_lider"
-        )
 
-        tablas_guardar.append(tabla_lider)
+    # Asegurar que Observación sea texto
+    tabla_lider["Observación"] = tabla_lider["Observación"].fillna("").astype(str)
+
+    tabla_lider = st.data_editor(
+        tabla_lider,
+        column_config={
+            "Tipo Pago Comisión": st.column_config.SelectboxColumn(
+                options=["Pago 100%", "Pago 90%", "Sin pago (0%)"]
+            ),
+            "Observación": st.column_config.TextColumn(
+                "Observación",
+                help="Escribe o pega comentarios aquí",
+                width="large"
+            )
+        },
+        disabled=not es_director,
+        use_container_width=True,
+        key="editor_lider"
+    )
+
+
+    tablas_guardar.append(tabla_lider)
+
 
     # =====================
     # ASESORAS
@@ -523,79 +598,123 @@ with tab2:
     st.markdown("## 👥 Asesoras")
     df_asesoras = df_cvs[df_cvs["Rol"] == "ASESOR"]
 
-    if df_asesoras.empty:
-        st.warning("No hay asesoras en este CVS")
-    else:
-        for nombre, g in df_asesoras.groupby("Nombre_Vendedor"):
-            with st.expander(f"👩 {nombre}"):
-                meta_p, ejec_p, pct_p = calcular_kpi_puntos(df_cvs, g, "ASESOR")
+    for nombre, g in df_asesoras.groupby("Nombre_Vendedor"):
+
+        with st.expander(f"👩 {nombre}"):
+
+            meta_p, ejec_p, pct_p = calcular_kpi_puntos(df_cvs, g, "ASESOR")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
                 st.metric("🎯 KPI Puntos", f"{int(ejec_p)} / {int(meta_p)}", f"{pct_p}%")
 
-                tabla = construir_tabla_productos(g, maestro, df_cvs, "ASESOR")
-                tabla["Nombre"] = nombre
-                tabla["Rol"] = "ASESOR"
-                tabla["CVS"] = cvs_sel
-                tabla["Mes"] = mes_sel
-
-                # Cargar histórico si existe
-                tabla[["Tipo Pago Comisión", "Observación"]] = tabla.apply(
-                    lambda r: next(
-                        (
-                            (x["Tipo Pago Comisión"], x["Observación"])
-                            for x in st.session_state.get("historico_decisiones", [])
-                            if x["Mes"] == mes_sel
-                            and x["CVS"] == cvs_sel
-                            and x["Nombre"] == nombre
-                            and x["Producto"] == r["Producto"]
-                        ),
-                        ("Pago 100%", "")
+            with col2:
+                acc_guardado = next(
+                    (
+                        x.get("ACC", 100)
+                        for x in st.session_state["historico_decisiones"]
+                        if x["Mes"] == mes_sel
+                        and x["CVS"] == cvs_sel
+                        and x["Nombre"] == nombre
+                        and x["Rol"] == "ASESOR"
                     ),
-                    axis=1,
-                    result_type="expand"
+                    100
                 )
 
-                # ✅ Asegurar que las columnas sean tipo string
-                tabla["Tipo Pago Comisión"] = tabla["Tipo Pago Comisión"].astype(str)
-                tabla["Observación"] = tabla["Observación"].fillna("").astype(str)
+                if pd.isna(acc_guardado):
+                    acc_guardado = 100
 
-                tabla = st.data_editor(
-                    tabla,
-                    column_config={
-                        "Tipo Pago Comisión": st.column_config.SelectboxColumn(
-                            options=["Pago 100%", "Pago 90%", "Sin pago (0%)"]
-                        ),
-                        "Observación": st.column_config.TextColumn()
-                    },
-                    disabled=not es_director,
-                    use_container_width=True,
-                    key=f"editor_{nombre}"
+                key_acc = f"acc_{cvs_sel}_{nombre}"
+
+
+                if key_acc not in st.session_state:
+                    st.session_state[key_acc] = int(acc_guardado)
+
+                acc_asesor = st.number_input(
+                    "ACC (%)",
+                    min_value=0,
+                    max_value=200,
+                    key=key_acc,
+                    step=1
                 )
 
-                tablas_guardar.append(tabla)
+            tabla = construir_tabla_productos(g, maestro, df_cvs, "ASESOR")
+            tabla["Nombre"] = nombre
+            tabla["Rol"] = "ASESOR"
+            tabla["CVS"] = cvs_sel
+            tabla["Mes"] = mes_sel
+
+            tabla[["Tipo Pago Comisión", "Observación"]] = tabla.apply(
+                lambda r: next(
+                    (
+                        (x["Tipo Pago Comisión"], x["Observación"])
+                        for x in st.session_state["historico_decisiones"]
+                        if x["Mes"] == mes_sel
+                        and x["CVS"] == cvs_sel
+                        and x["Nombre"] == nombre
+                        and x["Producto"] == r["Producto"]
+                    ),
+                    ("Pago 100%", "")
+                ),
+                axis=1,
+                result_type="expand"
+            )
+
+            tabla["Observación"] = tabla["Observación"].fillna("").astype(str)
+
+
+            tabla = st.data_editor(
+                tabla,
+                column_config={
+                    "Tipo Pago Comisión": st.column_config.SelectboxColumn(
+                        options=["Pago 100%", "Pago 90%", "Sin pago (0%)"]
+                    )
+                },
+                disabled=not es_director,
+                use_container_width=True,
+                key=f"editor_{nombre}"
+            )
+
+            tablas_guardar.append(tabla)
+
 
     # =====================
-    # GUARDAR + DESCARGAR
+    # GUARDAR HISTÓRICO
     # =====================
     if es_director and st.button("💾 Guardar decisiones del CVS"):
-        if tablas_guardar:  # Prevenir error si no hay tablas
-            nuevas_decisiones = pd.concat(tablas_guardar, ignore_index=True)
+        if tablas_guardar:
 
-            # Cargar histórico existente desde Excel
+            tablas_con_acc = []
+
+            for tabla in tablas_guardar:
+                tabla = tabla.copy()
+                nombre = tabla["Nombre"].iloc[0]
+                rol = tabla["Rol"].iloc[0]
+
+                if rol == "LIDER":
+                    acc_valor = st.session_state.get(f"acc_lider_{cvs_sel}", 100)
+                else:
+                    acc_valor = st.session_state.get(f"acc_{cvs_sel}_{nombre}", 100)
+
+
+
+                tabla["ACC"] = acc_valor
+                tablas_con_acc.append(tabla)
+
+            nuevas_decisiones = pd.concat(tablas_con_acc, ignore_index=True)
+
             if RUTA_HISTORICO.exists():
                 df_historico = pd.read_excel(RUTA_HISTORICO, engine="openpyxl")
             else:
                 df_historico = pd.DataFrame(columns=nuevas_decisiones.columns)
 
-            # Eliminar registros del mismo CVS y mes
             df_historico = df_historico[~(
                 (df_historico["Mes"] == mes_sel) &
                 (df_historico["CVS"] == cvs_sel)
             )]
 
-            # Agregar nuevas decisiones
             df_historico = pd.concat([df_historico, nuevas_decisiones], ignore_index=True)
-
-            # Guardar a Excel
             df_historico.to_excel(RUTA_HISTORICO, index=False)
 
             # Actualizar session_state
@@ -603,13 +722,26 @@ with tab2:
 
             st.success(f"✅ Decisiones guardadas correctamente en {RUTA_HISTORICO.name}")
 
+    # =====================
+    # DESCARGAR HISTÓRICO DEL MES
+    # =====================
     if st.button("📊 Descargar histórico del mes"):
+
         df_hist = pd.DataFrame(st.session_state.get("historico_decisiones", []))
         df_hist = df_hist[df_hist["Mes"] == mes_sel]
+
         if not df_hist.empty:
-            with open(RUTA_HISTORICO, "rb") as f:
+
+            archivo_mes = DATA_DIR / f"Historico_Comisiones_{mes_sel}.xlsx"
+            df_hist.to_excel(archivo_mes, index=False)
+
+            with open(archivo_mes, "rb") as f:
                 st.download_button(
                     "⬇️ Descargar Excel",
                     f,
                     file_name=f"Historico_Comisiones_{mes_sel}.xlsx"
                 )
+        else:
+            st.warning("No hay datos para este mes")
+
+
