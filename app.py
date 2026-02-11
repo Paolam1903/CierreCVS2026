@@ -130,22 +130,41 @@ elif perfil == "DIRECTOR COMERCIAL":
 
 
 # =============================
-# CARGA DATOS
-# =============================
+# CARGA DATOS Y FILTROS SEGURAMENTE
+# ============================
+
+# -----------------------------
+# Leer archivos
+# -----------------------------
 df = pd.read_excel(RUTA_LIQ)
 df_meta = pd.read_excel(RUTA_METAS)
 
+# -----------------------------
+# Formatear fecha y crear columna Mes
+# -----------------------------
 df["Fecha"] = pd.to_datetime(df["Fecha"])
 df["Mes"] = df["Fecha"].dt.strftime("%Y-%m")
 
+# -----------------------------
+# Normalizar columnas de texto
+# -----------------------------
 for c in ["Sucursal", "Producto", "Rol"]:
-    df[c] = df[c].astype(str).str.upper().str.strip()
+    if c in df.columns:
+        df[c] = df[c].astype(str).str.upper().str.strip()
+    if c in df_meta.columns:
+        df_meta[c] = df_meta[c].astype(str).str.upper().str.strip()
 
-df = df.merge(df_meta, on=["Sucursal", "Producto"], how="left")
+# -----------------------------
+# Merge con columnas necesarias
+# Evitar traer "Mes" del df_meta para no sobreescribir
+# -----------------------------
+columnas_meta = [col for col in df_meta.columns if col not in ["Mes", "Sucursal", "Producto"]]
+df = df.merge(df_meta[["Sucursal", "Producto"] + columnas_meta], 
+              on=["Sucursal", "Producto"], how="left")
 
-# =============================
-# FILTROS
-# =============================
+# -----------------------------
+# FILTROS EN SIDEBAR
+# -----------------------------
 st.sidebar.subheader("📅 Filtros")
 
 # Filtro por mes
@@ -161,9 +180,9 @@ if es_director or es_admin:
 else:
     cvs_sel = cvs_usuario
 
-# =============================
+# -----------------------------
 # APLICAR FILTROS
-# =============================
+# -----------------------------
 df_f = df.copy()
 
 # Filtro mes
@@ -173,6 +192,8 @@ if mes_sel != "Todos":
 # Filtro CVS
 if cvs_sel and cvs_sel != "Todos":
     df_f = df_f[df_f["Sucursal"] == cvs_sel]
+
+
 
 
 
