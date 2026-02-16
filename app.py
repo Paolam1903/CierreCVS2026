@@ -76,6 +76,7 @@ ACCESOS_CVS = {
     "SABANETA": "sabaneta19092+",
     "TERMINAL NORTE": "norte11+",
     "GENERAL": "Todos12345+",
+    "NUMERARIO": "numerario2026+",
 
 }
 
