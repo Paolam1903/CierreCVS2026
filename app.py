@@ -629,7 +629,7 @@ with tab2:
 
     for nombre, g in df_asesoras.groupby("Nombre_Vendedor"):
 
-        with st.expander(f"👩 {nombre}"):
+        with st.expander(f"👤 {nombre}"):
 
             meta_p, ejec_p, pct_p = calcular_kpi_puntos(df_cvs, g, "ASESOR")
 
