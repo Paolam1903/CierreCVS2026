@@ -588,7 +588,7 @@ with tab2:
                 and x["Nombre"] == nombre_lider
                 and x["Producto"] == r["Producto"]
             ),
-            ("Pago 0%", "")
+            ("Pago 100%", "")
         ),
         axis=1,
         result_type="expand"
@@ -684,7 +684,7 @@ with tab2:
                         and x["Nombre"] == nombre
                         and x["Producto"] == r["Producto"]
                     ),
-                    ("Pago 0%", "")
+                    ("Pago 100%", "")
                 ),
                 axis=1,
                 result_type="expand"
