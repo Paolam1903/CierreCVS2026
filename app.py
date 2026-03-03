@@ -213,7 +213,7 @@ with tab1:
     st.subheader("📦 Cumplimiento por Producto")
     
     # Lista fija de productos
-    productos_base = ["HOGAR", "POSTPAGO", "TERMINALES", "FOCO", "CVS PLUS", "OTROS"]
+    productos_base = ["HOGAR", "POSTPAGO", "TERMINALES", "FOCO", "CVS PLUS", "OTROS", "PORTA PRE"]
     
     
     # Agrupar meta y ejecutado por producto
