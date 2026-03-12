@@ -426,7 +426,6 @@ def construir_tabla_productos(df_vendedor, maestro, df_cvs, rol):
     # =====================
     # VENTAS POR PRODUCTO
     # =====================
-
     ejec = (
         df_vendedor.groupby("Producto")["Cantidad"]
         .sum()
@@ -439,18 +438,17 @@ def construir_tabla_productos(df_vendedor, maestro, df_cvs, rol):
 
         # aplicar distribución
         meta_ajustada = meta * porcentaje
-        meta_final = int(round(meta_ajustada))  # redondeo UNA sola vez
 
         ejecutado = ejec.get(producto, 0)
 
-        if meta_final > 0:
-            pct = int(round((ejecutado / meta_final) * 100))
+        if meta_ajustada > 0:
+            pct = int(round((ejecutado / meta_ajustada) * 100))
         else:
             pct = 0
 
         filas.append({
             "Producto": producto,
-            "Meta_Producto": meta_final,
+            "Meta_Producto": int(round(meta_ajustada)),
             "Ejecutado": int(ejecutado),
             "% Cumplimiento": f"{pct}%"
         })
@@ -458,6 +456,8 @@ def construir_tabla_productos(df_vendedor, maestro, df_cvs, rol):
     tabla = pd.DataFrame(filas)
 
     return tabla
+
+
 
 
 # =====================
@@ -596,7 +596,7 @@ with tab2:
                 and x["Nombre"] == nombre_lider
                 and x["Producto"] == r["Producto"]
             ),
-            ("Sin pago (0%)", "")
+            ("Pago 100%", "")
         ),
         axis=1,
         result_type="expand"
@@ -692,7 +692,7 @@ with tab2:
                         and x["Nombre"] == nombre
                         and x["Producto"] == r["Producto"]
                     ),
-                    ("Sin pago (0%)", "")
+                    ("Pago 100%", "")
                 ),
                 axis=1,
                 result_type="expand"
