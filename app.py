@@ -410,9 +410,7 @@ def construir_tabla_productos(df_vendedor, maestro, df_cvs, rol):
     # =====================
     # CALCULAR Nº ASESORES
     # =====================
-    n_asesores = df_cvs[
-        df_cvs["Rol"] == "ASESOR"
-    ]["Nombre_Vendedor"].nunique()
+    n_asesores = df_cvs[df_cvs["Rol"] == "ASESOR"]["Nombre_Vendedor"].nunique()
 
     # Obtener porcentajes
     porc_asesor, porc_lider = calcular_distribucion(n_asesores, df_cvs["Sucursal"].iloc[0])
@@ -466,12 +464,7 @@ def construir_tabla_productos(df_vendedor, maestro, df_cvs, rol):
 def calcular_kpi_puntos(df_cvs, df_persona, rol):
     meta_general = df_cvs["Meta_General"].iloc[0]
 
-    SUPERNUMERARIOS = ["Johan Daniel Herrera Mazo", "Kelly Yuliana Ospina Saldarriaga", "Sara Julieth Acevedo Gutierrez"]
-
-    n_asesores = df_cvs[
-        (df_cvs["Rol"] == "ASESOR") &
-        (~df_cvs["Nombre_Vendedor"].isin(SUPERNUMERARIOS))
-    ]["Cedula_Vendedor"].nunique()
+    n_asesores = df_cvs[df_cvs["Rol"] == "ASESOR"]["Cedula_Vendedor"].nunique()
     cvs = df_cvs["Sucursal"].iloc[0]
     pct_lider, pct_asesor_individual = calcular_distribucion(n_asesores, cvs)
 
