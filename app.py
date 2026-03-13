@@ -196,6 +196,60 @@ if cvs_sel and cvs_sel != "Todos":
     df_f = df_f[df_f["Sucursal"] == cvs_sel]
 
 
+# =============================
+# KPI CVS PLUS (ANTES DE LOS TABS)
+# =============================
+
+if cvs_sel and cvs_sel != "Todos":
+
+    df_cvs_plus = df_f[
+        (df_f["Sucursal"] == cvs_sel) &
+        (df_f["Producto"].str.upper() == "CVS PLUS")
+    ]
+
+    # Meta CVS PLUS
+    meta_plus = df_cvs_plus["Meta_Producto"].max()
+
+    # Ejecutado (cantidad)
+    ejec_plus = df_cvs_plus["Cantidad"].iloc[0] if not df_cvs_plus.empty else 0
+
+    # % cumplimiento
+    if meta_plus > 0:
+        pct_plus = round((ejec_plus / meta_plus) * 100, 1)
+    else:
+        pct_plus = 0
+
+    # Semáforo
+    if pct_plus >= 100:
+        color = "#2ecc71"
+        estado = "Cumplido"
+    elif pct_plus >= 80:
+        color = "#f39c12"
+        estado = "En riesgo"
+    else:
+        color = "#e74c3c"
+        estado = "Bajo cumplimiento"
+
+    # Cuadro visual
+    st.markdown(
+        f"""
+        <div style="
+            background-color:{color};
+            padding:20px;
+            border-radius:12px;
+            text-align:center;
+            color:white;
+            font-size:22px;
+            font-weight:bold;
+            margin-bottom:15px;
+        ">
+        📦 CVS PLUS — {cvs_sel}<br><br>
+        Meta: {int(meta_plus):,} | Ejecutado: {int(ejec_plus):,}<br>
+        Cumplimiento: {pct_plus}% ({estado})
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 
 
@@ -213,7 +267,7 @@ with tab1:
     st.subheader("📦 Cumplimiento por Producto")
     
     # Lista fija de productos
-    productos_base = ["HOGAR", "POSTPAGO", "TERMINALES", "FOCO", "CVS PLUS", "OTROS"]
+    productos_base = ["HOGAR", "POSTPAGO", "TERMINALES", "CVS PLUS", "OTROS"]
     
     
     # Agrupar meta y ejecutado por producto
@@ -391,7 +445,7 @@ def maestro_productos_por_cvs(df, cvs_sel):
     )
 
     # Asegurar que siempre existan estos productos
-    productos_base = ["HOGAR", "POSTPAGO", "TERMINALES", "FOCO", "CVS PLUS", "OTROS"]
+    productos_base = ["HOGAR", "POSTPAGO", "TERMINALES", "CVS PLUS", "OTROS"]
 
     for p in productos_base:
         if p not in maestro:
@@ -452,6 +506,13 @@ def construir_tabla_productos(df_vendedor, maestro, df_cvs, rol):
         })
 
     tabla = pd.DataFrame(filas)
+
+
+    # Orden fijo de productos
+    orden_productos = [ "POSTPAGO", "HOGAR", "TERMINALES", "OTROS", "CVS PLUS" ]
+
+    tabla["Producto"] = pd.Categorical(tabla["Producto"], categories=orden_productos, ordered=True)
+    tabla = tabla.sort_values("Producto")
 
     return tabla
 
@@ -589,7 +650,7 @@ with tab2:
                 and x["Nombre"] == nombre_lider
                 and x["Producto"] == r["Producto"]
             ),
-            ("Pago 100%", "")
+            ("Sin pago (0%)", "")
         ),
         axis=1,
         result_type="expand"
@@ -685,7 +746,7 @@ with tab2:
                         and x["Nombre"] == nombre
                         and x["Producto"] == r["Producto"]
                     ),
-                    ("Pago 100%", "")
+                    ("Sin pago (0%)", "")
                 ),
                 axis=1,
                 result_type="expand"
