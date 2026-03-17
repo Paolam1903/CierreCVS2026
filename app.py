@@ -75,9 +75,10 @@ ACCESOS_CVS = {
     "JUNIN": "cvscentro2025+",
     "SABANETA": "sabaneta19092+",
     "TERMINAL NORTE": "norte11+",
+    "GIRARDOTA": "Girardota1111+",
     "GENERAL": "Todos12345+",
     "NUMERARIO": "numerario2026+",
-    "GIRARDOTA": "Girardota1111+",
+    
 
 }
 
